@@ -26,3 +26,4 @@ Opening `index.html` directly (file://) also works. There is nothing else to run
 - `dt`-based game loop (`loop(ts)` → `update(dt)`); keep movement/frame logic delta-time aware, not per-frame constants.
 - Ship respawn invulnerability and edge-wrapping (`wrap()`, toroidal space) are core mechanics — don't remove the blinking/invincibility after death.
 - Scoring, split behavior, and level progression (`spawnAsteroids(3 + level)` when the field is empty) are documented in `README.md`; update the README if you change them.
+- Special asteroid: `ShootingStar extends Asteroid`, marked with `special = true` and its own `points` (300). Spawned by `starTimer` every 6–12 s; expires on its own (`ttl` = 5 s), never splits, drops no power-ups, and kills on contact. Level completion ignores `special` asteroids: `!asteroids.some(a => !a.special)`.
