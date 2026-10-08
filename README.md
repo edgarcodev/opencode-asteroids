@@ -43,3 +43,4 @@ Luego visita `http://localhost:3000`.
 - 3 vidas con invencibilidad temporal al reaparecer (parpadeo)
 - Asteroides se parten en fragmentos más pequeños al ser destruidos
 - Partículas de explosión al destruir asteroides
+- **Power-up ⚡ Velocidad**: ~15% de probabilidad de soltarlo al destruir un asteroide. Al recogerlo la nave acelera al doble (520 px/s²) durante 5 segundos; la llama se vuelve cian y el HUD muestra el tiempo restante. Dura 8 s en el campo si no se recoge.
