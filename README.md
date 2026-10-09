@@ -33,16 +33,19 @@ Luego visita `http://localhost:3000`.
 
 ## Skins
 
-Cuatro apariencias cosméticas para la nave (no afectan al gameplay). Pulsa `K` para ciclar entre ellas en cualquier momento: el HUD muestra el nombre de la skin elegida durante 2 s. La selección se guarda en `localStorage` y se recuerda al recargar la página.
+Cinco apariencias para la nave: cuatro puramente cosméticas (no afectan al gameplay) y **TITÁN**, que sí cambia las reglas. Pulsa `K` para ciclar entre ellas en cualquier momento: el HUD muestra el nombre de la skin elegida durante 2 s. La selección se guarda en `localStorage` y se recuerda al recargar la página.
 
-| Skin        | Color        | Detalle                       |
-| ----------- | ------------ | ----------------------------- |
-| CLÁSICA     | Blanco       | Silueta clásica, llama naranja |
-| INTERCEPTOR | Magenta      | Casco afilado con doble llama  |
-| GALERA      | Dorado       | Cabina rellenada               |
-| COMETA      | Verde        | Panel interior en el casco     |
+| Skin        | Color        | Detalle                                       |
+| ----------- | ------------ | --------------------------------------------- |
+| CLÁSICA     | Blanco       | Silueta clásica, llama naranja                |
+| INTERCEPTOR | Magenta      | Casco afilado con doble llama                 |
+| GALERA      | Dorado       | Cabina rellenada                              |
+| COMETA      | Verde        | Panel interior en el casco                    |
+| TITÁN       | Morado       | **2× el tamaño** y **doble de puntos (×2)**   |
 
 Con el power-up ⚡ Velocidad la llama se vuelve cian en todas las skins.
+
+**TITÁN** es dos veces más grande que la nave original: casco, llama, iconos de vida, escudo y radio de colisión van ampliados al doble (es un objetivo más grande). A cambio, **todo lo que destruyas vale el doble**; el HUD marca el multiplicador `×2` junto a la puntuación.
 
 ## Puntuación
 
@@ -53,6 +56,8 @@ Con el power-up ⚡ Velocidad la llama se vuelve cian en todas las skins.
 | Pequeño   | 100    |
 | Estrella fugaz | 300 |
 
+Con la skin **TITÁN** todos los valores se multiplican por 2 (40 / 100 / 200 / 600).
+
 ## Características
 
 - 3 vidas con invencibilidad temporal al reaparecer (parpadeo)
@@ -62,4 +67,4 @@ Con el power-up ⚡ Velocidad la llama se vuelve cian en todas las skins.
 - **Power-up 🔱 Triple Shot**: ~15% de probabilidad de soltarlo al destruir un asteroide. Los tres power-ups se reparten con **un solo roll por asteroide destruido**: 15% ⚡ + 15% 🔱 + 10% escudo, nunca dos a la vez. Al recogerlo, durante **5 segundos** cada disparo sale en abanico de **3 balas separadas ±12°**; las balas se ven ámbar y el HUD muestra el tiempo restante (`»`). Dura 8 s en el campo si no se recoge.
 - **Power-up Escudo**: ~10% de probabilidad de soltarlo al destruir un asteroide (anillo violeta con icono de escudo). Al recogerlo la nave queda protegida durante **5 segundos** y el escudo **absorbe hasta 3 impactos** con asteroides o estrellas fugaces. Cada impacto consume un golpe, destella el anillo y da invencibilidad breve (parpadeo) para no perder los golpes de una sola vez. Se apaga al agotarse los golpes o el tiempo (parpadea al estar por expirar), se pierde al morir o al avanzar de nivel, y el HUD muestra los golpes y segundos restantes. Dura 8 s en el campo si no se recoge.
 - **Estrella fugaz** (asteroide especial): aparece cada 6–12 s desde un borde del campo, cruzándolo a 260–340 px/s (varias veces la velocidad de un asteroide pequeño). Es una estrella de 5 puntas amarilla con estela que **desaparece a los 5 s** si no la destruyen (parpadea y se desvanece al estar por expirar). Da **300 puntos**, no se fragmenta al ser destruida, no suelta power-ups y mata al chocar con la nave (el Escudo activo absorbe ese impacto). Su presencia no bloquea el avance de nivel.
-- **Skins de nave**: 4 apariencias cosméticas (silueta, color y detalle) seleccionables con `K` en caliente; la elegida se persiste en `localStorage`. Los iconos de vidas del HUD reflejan la skin activa.
+- **Skins de nave**: 5 apariencias (silueta, color y detalle) seleccionables con `K` en caliente; la elegida se persiste en `localStorage`. Los iconos de vidas del HUD reflejan la skin activa. Cuatro son cosméticas; **TITÁN** (morada) mide el doble, tiene el doble de colisión y multiplica ×2 la puntuación.
