@@ -31,7 +31,7 @@ const randInt = (min, max) => Math.floor(rand(min, max + 1));
 
 // ── Bullet ────────────────────────────────────────────────────────────────────
 class Bullet {
-  constructor(x, y, angle) {
+  constructor(x, y, angle, color = '#fff') {
     this.x = x;
     this.y = y;
     const SPEED = 520;
@@ -39,6 +39,7 @@ class Bullet {
     this.vy = Math.sin(angle) * SPEED;
     this.ttl  = 1.1;
     this.radius = 2;
+    this.color = color;
     this.dead = false;
   }
 
@@ -50,7 +51,7 @@ class Bullet {
   }
 
   draw() {
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = this.color;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     ctx.fill();
@@ -347,7 +348,10 @@ class Ship {
     const NOSE = 21;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
-    return [new Bullet(ox, oy, this.angle)];
+    // Triple Shot activo: abanico de 3 balas (−12°, 0°, +12°) en ámbar
+    const spread = tripleTimer > 0 ? [-TRIPLE_ANGLE, 0, TRIPLE_ANGLE] : [0];
+    const color  = tripleTimer > 0 ? '#ffb020' : '#fff';
+    return spread.map(a => new Bullet(ox, oy, this.angle + a, color));
   }
 
   draw() {
@@ -425,18 +429,21 @@ class Particle {
 // ── Power-up ──────────────────────────────────────────────────────────────────
 const SPEED_DURATION = 5;       // segundos de efecto
 const SPEED_DROP_CHANCE = 0.15; // probabilidad de drop al destruir un asteroide
+const TRIPLE_DURATION = 5;      // segundos de Triple Shot
+const TRIPLE_DROP_CHANCE = 0.15; // probabilidad de drop del Triple Shot
+const TRIPLE_ANGLE = 12 * Math.PI / 180;  // dispersión del abanico (±12°)
 const SHIELD_DURATION = 5;      // segundos de efecto del Escudo
 const SHIELD_HITS     = 3;      // golpes que absorbe el Escudo
 const SHIELD_DROP_CHANCE = 0.1; // probabilidad de drop de Escudo
 
 // Color por tipo de power-up
-const PU_COLORS = { speed: '#0dcfff', shield: '#b47cff' };
+const PU_COLORS = { speed: '#0dcfff', triple: '#ffb020', shield: '#b47cff' };
 
 class PowerUp {
   constructor(x, y, type = 'speed') {
     this.x = x;
     this.y = y;
-    this.type = type;
+    this.type = type;   // 'speed' | 'triple' | 'shield'
     this.color = PU_COLORS[type] || PU_COLORS.speed;
     this.radius = 13;
     this.ttl = 8;    // vida en campo si no se recoge
@@ -461,6 +468,23 @@ class PowerUp {
     ctx.beginPath();
     ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
     ctx.stroke();
+
+    if (this.type === 'triple') {
+      // Tres chevrons en línea ▸▸▸ (Triple Shot)
+      ctx.strokeStyle = this.color;
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (const dx of [-6, 0, 6]) {
+        ctx.moveTo(dx - 3, -5);
+        ctx.lineTo(dx + 2, 0);
+        ctx.lineTo(dx - 3,  5);
+      }
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
 
     ctx.rotate(this.rot);
     if (this.type === 'shield') {
@@ -496,6 +520,7 @@ class PowerUp {
 let ship, bullets, asteroids, particles, powerups;
 let score, lives, level;
 let speedTimer;   // segundos restantes de Velocidad (0 = inactiva)
+let tripleTimer;  // segundos restantes de Triple Shot (0 = inactiva)
 let shieldTimer;  // segundos restantes de Escudo (0 = inactivo)
 let shieldHits;   // golpes que aún absorbe el Escudo
 let shieldFlash;  // destello tras absorber un impacto (s)
@@ -526,6 +551,7 @@ function initGame() {
   lives  = 3;
   level  = 1;
   speedTimer  = 0;
+  tripleTimer = 0;
   shieldTimer = 0;
   shieldHits  = 0;
   shieldFlash = 0;
@@ -541,6 +567,7 @@ function nextLevel() {
   particles = [];
   powerups  = [];
   speedTimer  = 0;
+  tripleTimer = 0;
   shieldTimer = 0;
   shieldHits  = 0;
   shieldFlash = 0;
@@ -597,6 +624,7 @@ function update(dt) {
   }
 
   if (speedTimer  > 0) speedTimer  = Math.max(0, speedTimer - dt);
+  if (tripleTimer > 0) tripleTimer = Math.max(0, tripleTimer - dt);
   if (shieldTimer > 0) shieldTimer = Math.max(0, shieldTimer - dt);
   if (shieldTimer <= 0) shieldHits = 0;   // sin tiempo no quedan golpes
   if (shieldFlash > 0) shieldFlash = Math.max(0, shieldFlash - dt);
@@ -630,8 +658,14 @@ function update(dt) {
         explode(a.x, a.y, a.size * 5);
         newAsteroids.push(...a.split());
         if (!a.special) {
-          if      (Math.random() < SPEED_DROP_CHANCE)  powerups.push(new PowerUp(a.x, a.y, 'speed'));
-          else if (Math.random() < SHIELD_DROP_CHANCE) powerups.push(new PowerUp(a.x, a.y, 'shield'));
+          // Un solo roll: 15% ⚡ + 15% 🔱 + 10% escudo, nunca dos a la vez
+          const roll = Math.random();
+          if (roll < SPEED_DROP_CHANCE)
+            powerups.push(new PowerUp(a.x, a.y, 'speed'));
+          else if (roll < SPEED_DROP_CHANCE + TRIPLE_DROP_CHANCE)
+            powerups.push(new PowerUp(a.x, a.y, 'triple'));
+          else if (roll < SPEED_DROP_CHANCE + TRIPLE_DROP_CHANCE + SHIELD_DROP_CHANCE)
+            powerups.push(new PowerUp(a.x, a.y, 'shield'));
         }
       }
     }
@@ -662,12 +696,12 @@ function update(dt) {
   for (const p of powerups) {
     if (!p.dead && dist(ship, p) < ship.radius + p.radius) {
       p.dead = true;
-      if (p.type === 'shield') {
+      if (p.type === 'speed')       speedTimer  = SPEED_DURATION;
+      else if (p.type === 'triple') tripleTimer = TRIPLE_DURATION;
+      else {                          // 'shield'
         shieldTimer = SHIELD_DURATION;
         shieldHits  = SHIELD_HITS;
         shieldFlash = 0.25;
-      } else {
-        speedTimer = SPEED_DURATION;
       }
       explode(p.x, p.y, 6);
     }
@@ -738,8 +772,15 @@ function drawHUD() {
 
   // Temporizador del power-up Velocidad
   if (speedTimer > 0) {
-    ctx.fillStyle = '#0dcfff';
+    ctx.fillStyle = PU_COLORS.speed;
     ctx.fillText(`⚡ ${speedTimer.toFixed(1)}`, 14, y);
+    y += 22;
+  }
+
+  // Temporizador del power-up Triple Shot
+  if (tripleTimer > 0) {
+    ctx.fillStyle = PU_COLORS.triple;
+    ctx.fillText(`» ${tripleTimer.toFixed(1)}`, 14, y);
     y += 22;
   }
 
