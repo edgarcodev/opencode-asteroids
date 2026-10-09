@@ -15,7 +15,7 @@ Opening `index.html` directly (file://) also works. There is nothing else to run
 ## Structure & conventions
 
 - `game.js` is the single file for all game logic, rendering, input, and HUD. Keep it that way unless asked.
-- Section banners (`// ── Name ──...`) separate concerns: Input, Utils, Bullet, Asteroid, Ship, Particle, then functions (`initGame`, `update`, `draw`, `loop`). Follow this layout when adding code.
+- Section banners (`// ── Name ──...`) separate concerns: Input, Utils, Bullet, Asteroid, Skins, Ship, Particle, then functions (`initGame`, `update`, `draw`, `loop`). Follow this layout when adding code.
 - `W`/`H` are defined in `game.js` **and** hardcoded as the canvas `width`/`height` in `index.html`. Change both together.
 - Asteroid `size` runs 3 (big) → 1 (small); it splits via `size - 1` until `size <= 1`. Lookup tables `RADII`/`SPEEDS`/`POINTS` are indexed by size, so points are `[0, 100, 50, 20]` (small → big).
 - Input edge-triggering: `keys[code]` is held state; `pressed(code)` returns true once per press (consumes `justPressed`). Use `pressed()` for single-shot actions (fire, start/restart) and `keys[]` for continuous ones (thrust, rotate). Note `pressed()` clears the flag, so calling it twice in one frame misses the second call.
