@@ -31,7 +31,7 @@ const randInt = (min, max) => Math.floor(rand(min, max + 1));
 
 // ── Bullet ────────────────────────────────────────────────────────────────────
 class Bullet {
-  constructor(x, y, angle) {
+  constructor(x, y, angle, color = '#fff') {
     this.x = x;
     this.y = y;
     const SPEED = 520;
@@ -39,6 +39,7 @@ class Bullet {
     this.vy = Math.sin(angle) * SPEED;
     this.ttl  = 1.1;
     this.radius = 2;
+    this.color = color;
     this.dead = false;
   }
 
@@ -50,7 +51,7 @@ class Bullet {
   }
 
   draw() {
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = this.color;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     ctx.fill();
@@ -247,7 +248,10 @@ class Ship {
     const NOSE = 21;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
-    return [new Bullet(ox, oy, this.angle)];
+    // Triple Shot activo: abanico de 3 balas (−12°, 0°, +12°) en ámbar
+    const spread = tripleTimer > 0 ? [-TRIPLE_ANGLE, 0, TRIPLE_ANGLE] : [0];
+    const color  = tripleTimer > 0 ? '#ffb020' : '#fff';
+    return spread.map(a => new Bullet(ox, oy, this.angle + a, color));
   }
 
   draw() {
@@ -321,12 +325,15 @@ class Particle {
 // ── Power-up ──────────────────────────────────────────────────────────────────
 const SPEED_DURATION = 5;       // segundos de efecto
 const SPEED_DROP_CHANCE = 0.15; // probabilidad de drop al destruir un asteroide
+const TRIPLE_DURATION = 5;      // segundos de Triple Shot
+const TRIPLE_DROP_CHANCE = 0.15; // probabilidad de drop del Triple Shot
+const TRIPLE_ANGLE = 12 * Math.PI / 180;  // dispersión del abanico (±12°)
 
 class PowerUp {
-  constructor(x, y) {
+  constructor(x, y, type = 'speed') {
     this.x = x;
     this.y = y;
-    this.type = 'speed';
+    this.type = type;   // 'speed' | 'triple'
     this.radius = 13;
     this.ttl = 8;    // vida en campo si no se recoge
     this.dead = false;
@@ -345,11 +352,28 @@ class PowerUp {
 
     ctx.save();
     ctx.translate(this.x, this.y);
-    ctx.strokeStyle = '#0dcfff';
+    ctx.strokeStyle = this.type === 'triple' ? '#ffb020' : '#0dcfff';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
     ctx.stroke();
+
+    if (this.type === 'triple') {
+      // Tres chevrons en línea ▸▸▸ (Triple Shot)
+      ctx.strokeStyle = '#ffb020';
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (const dx of [-6, 0, 6]) {
+        ctx.moveTo(dx - 3, -5);
+        ctx.lineTo(dx + 2, 0);
+        ctx.lineTo(dx - 3,  5);
+      }
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
 
     // Rayo ⚡
     ctx.rotate(this.rot);
@@ -371,6 +395,7 @@ class PowerUp {
 let ship, bullets, asteroids, particles, powerups;
 let score, lives, level;
 let speedTimer;   // segundos restantes de Velocidad (0 = inactiva)
+let tripleTimer;  // segundos restantes de Triple Shot (0 = inactiva)
 let starTimer;    // cuenta atrás para la próxima estrella fugaz
 let state;        // 'playing' | 'dead' | 'gameover'
 let deadTimer;
@@ -397,6 +422,7 @@ function initGame() {
   lives  = 3;
   level  = 1;
   speedTimer = 0;
+  tripleTimer = 0;
   starTimer  = rand(STAR_SPAWN_MIN, STAR_SPAWN_MAX);
   state  = 'playing';
   spawnAsteroids(4);
@@ -408,6 +434,7 @@ function nextLevel() {
   particles = [];
   powerups  = [];
   speedTimer = 0;
+  tripleTimer = 0;
   starTimer  = rand(STAR_SPAWN_MIN, STAR_SPAWN_MAX);
   ship.reset();
   spawnAsteroids(3 + level);
@@ -453,6 +480,7 @@ function update(dt) {
   }
 
   if (speedTimer > 0) speedTimer = Math.max(0, speedTimer - dt);
+  if (tripleTimer > 0) tripleTimer = Math.max(0, tripleTimer - dt);
 
   // Aparición de estrellas fugaces
   starTimer -= dt;
@@ -481,8 +509,13 @@ function update(dt) {
         score += a.points;
         explode(a.x, a.y, a.size * 5);
         newAsteroids.push(...a.split());
-        if (!a.special && Math.random() < SPEED_DROP_CHANCE)
-          powerups.push(new PowerUp(a.x, a.y));
+        if (!a.special) {
+          const roll = Math.random();
+          if (roll < SPEED_DROP_CHANCE)
+            powerups.push(new PowerUp(a.x, a.y, 'speed'));
+          else if (roll < SPEED_DROP_CHANCE + TRIPLE_DROP_CHANCE)
+            powerups.push(new PowerUp(a.x, a.y, 'triple'));
+        }
       }
     }
   }
@@ -503,7 +536,8 @@ function update(dt) {
   for (const p of powerups) {
     if (!p.dead && dist(ship, p) < ship.radius + p.radius) {
       p.dead = true;
-      speedTimer = SPEED_DURATION;
+      if (p.type === 'triple') tripleTimer = TRIPLE_DURATION;
+      else                     speedTimer  = SPEED_DURATION;
       explode(p.x, p.y, 6);
     }
   }
@@ -550,6 +584,13 @@ function drawHUD() {
     ctx.fillStyle = '#0dcfff';
     ctx.textAlign = 'left';
     ctx.fillText(`⚡ ${speedTimer.toFixed(1)}`, 14, 48);
+  }
+
+  // Temporizador del power-up Triple Shot
+  if (tripleTimer > 0) {
+    ctx.fillStyle = '#ffb020';
+    ctx.textAlign = 'left';
+    ctx.fillText(`» ${tripleTimer.toFixed(1)}`, 14, speedTimer > 0 ? 70 : 48);
   }
 }
 
