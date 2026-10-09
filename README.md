@@ -29,6 +29,20 @@ Luego visita `http://localhost:3000`.
 | `←` `→`   | Rotar nave |
 | `↑`       | Propulsar  |
 | `Espacio` | Disparar   |
+| `K`       | Cambiar skin |
+
+## Skins
+
+Cuatro apariencias cosméticas para la nave (no afectan al gameplay). Pulsa `K` para ciclar entre ellas en cualquier momento: el HUD muestra el nombre de la skin elegida durante 2 s. La selección se guarda en `localStorage` y se recuerda al recargar la página.
+
+| Skin        | Color        | Detalle                       |
+| ----------- | ------------ | ----------------------------- |
+| CLÁSICA     | Blanco       | Silueta clásica, llama naranja |
+| INTERCEPTOR | Magenta      | Casco afilado con doble llama  |
+| GALERA      | Dorado       | Cabina rellenada               |
+| COMETA      | Verde        | Panel interior en el casco     |
+
+Con el power-up ⚡ Velocidad la llama se vuelve cian en todas las skins.
 
 ## Puntuación
 
@@ -46,3 +60,4 @@ Luego visita `http://localhost:3000`.
 - Partículas de explosión al destruir asteroides
 - **Power-up ⚡ Velocidad**: ~15% de probabilidad de soltarlo al destruir un asteroide. Al recogerlo la nave acelera al doble (520 px/s²) durante 5 segundos; la llama se vuelve cian y el HUD muestra el tiempo restante. Dura 8 s en el campo si no se recoge.
 - **Estrella fugaz** (asteroide especial): aparece cada 6–12 s desde un borde del campo, cruzándolo a 260–340 px/s (varias veces la velocidad de un asteroide pequeño). Es una estrella de 5 puntas amarilla con estela que **desaparece a los 5 s** si no la destruyen (parpadea y se desvanece al estar por expirar). Da **300 puntos**, no se fragmenta al ser destruida, no suelta power-ups y mata al chocar con la nave. Su presencia no bloquea el avance de nivel.
+- **Skins de nave**: 4 apariencias cosméticas (silueta, color y detalle) seleccionables con `K` en caliente; la elegida se persiste en `localStorage`. Los iconos de vidas del HUD reflejan la skin activa.
