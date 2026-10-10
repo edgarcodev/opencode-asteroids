@@ -1,0 +1,261 @@
+
+# Triage automático de issues: cada issue nuevo se clasifica con IA (OpenCode)
+# y se le añade una sección "Info de revisión" debajo del texto original,
+# que nunca se modifica.
+name: Issue Triage
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    # No reaccionar a issues creadas por bots (evita bucles)
+    if: ${{ !endsWith(github.event.issue.user.login, '[bot]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      issues: write
+      # Necesario para mintear el token OIDC que se canjea por el token de la
+      # app de GitHub de OpenCode (no se usa secrets.GITHUB_TOKEN en ningún paso)
+      id-token: write
+
+    env:
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      MODEL: opencode/mimo-v2.6-flash-free
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      TRIAGE_DIR: ${{ runner.temp }}/triage
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      # ── Preparar datos ─────────────────────────────────────────────
+      - name: Preparar datos del issue
+        id: prep
+        run: |
+          set -euo pipefail
+          mkdir -p "$TRIAGE_DIR"
+
+          # El cuerpo original se guarda tal cual; el agente nunca lo reescribe
+          jq -r '.issue.body // ""' "$GITHUB_EVENT_PATH" > "$TRIAGE_DIR/original.md"
+          jq -r '.issue.title // ""' "$GITHUB_EVENT_PATH" > "$TRIAGE_DIR/title.txt"
+          jq -r '.issue.user.login // ""' "$GITHUB_EVENT_PATH" > "$TRIAGE_DIR/author.txt"
+          jq -r '.issue.created_at // ""' "$GITHUB_EVENT_PATH" > "$TRIAGE_DIR/created.txt"
+          jq -r '.issue.html_url // ""' "$GITHUB_EVENT_PATH" > "$TRIAGE_DIR/url.txt"
+
+          # Idempotencia: si ya tiene la sección, no hacer nada
+          if grep -q "Info de revisión" "$TRIAGE_DIR/original.md"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "El issue ya tiene la sección de revisión; se omite."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Instalar OpenCode CLI
+        if: steps.prep.outputs.skip != 'true'
+        run: npm install -g opencode-ai
+
+      # ── Token vía OIDC (sin secrets.GITHUB_TOKEN) ──────────────────
+      - name: Obtener token de la app de GitHub de OpenCode (OIDC)
+        if: steps.prep.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+
+          # 1. Mintear un token OIDC de Actions (requiere id-token: write)
+          SEP='?'
+          case "$ACTIONS_ID_TOKEN_REQUEST_URL" in *\?*) SEP='&' ;; esac
+          OIDC=$(curl -fsSL \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}${SEP}audience=opencode-github-action" \
+            | jq -r '.value')
+
+          if [ -z "$OIDC" ] || [ "$OIDC" = "null" ]; then
+            echo "::error::No se pudo mintear el token OIDC (¿permiso id-token: write?)."
+            exit 1
+          fi
+
+          # 2. Canjearlo por un token de instalación de la app de GitHub de OpenCode
+          APP_TOKEN=$(curl -fsSL -X POST \
+            -H "Authorization: Bearer $OIDC" \
+            https://api.opencode.ai/exchange_github_app_token \
+            | jq -r '.token // empty')
+
+          if [ -z "$APP_TOKEN" ] || [ "$APP_TOKEN" = "null" ]; then
+            echo "::error::El canje OIDC falló. Instala la app de GitHub de OpenCode en el repo (opencode github install)."
+            exit 1
+          fi
+
+          umask 077
+          printf '%s' "$APP_TOKEN" > "$TRIAGE_DIR/app_token"
+          echo "Token de la app de GitHub obtenido correctamente."
+
+      # ── Clasificación con IA ───────────────────────────────────────
+      - name: Clasificar issue con OpenCode
+        id: agent
+        if: steps.prep.outputs.skip != 'true'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+
+          # Prompt con instrucciones + datos del issue
+          {
+            cat <<'EOF'
+          Eres el encargado de triage de issues del repositorio
+          edgarcodev/opencode-asteroids: un clon de Asteroids en canvas HTML5 puro,
+          sin dependencias ni bundler. Todo el juego vive en `game.js` (~420 líneas)
+          y `index.html` es solo un shell de canvas 800x600.
+
+          Recibes un issue recién creado. Tu tarea:
+
+          1. CLASIFICARLO con labels elegidas SOLO de esta lista permitida
+             (0, 1 o varias; nunca inventes etiquetas fuera de ella):
+             bug, enhancement, question, documentation
+             - bug: algo no funciona / se rompe / error
+             - enhancement: mejora o feature pedida
+             - question: duda o consulta
+             - documentation: problemas o cambios de docs (README, comentarios)
+
+          2. REDACTAR una sección adicional en español que se añadirá DEBAJO del
+             texto original. Debes conservar el texto del autor intacto: no lo
+             resumas, no lo cites, no lo reformatees. Tu sección es extra.
+
+             La sección debe tener exactamente este aspecto:
+
+          ### 📎 Info de revisión (auto-generada)
+
+          **Metadatos**
+          - Reportado por @<autor> — <fecha ISO UTC>
+          - Commit: `<sha>` (rama `main`)
+          - Código relevante: enlaces a los archivos que un revisor debería mirar,
+            con URLs tipo https://github.com/edgarcodev/opencode-asteroids/blob/main/game.js
+            (identifica los archivos/lógica implicados según lo reportado)
+
+          **Triage**
+          - Categoría: bug | mejora | pregunta | documentación
+          - Prioridad: alta | media | baja (justificación de 1 línea)
+          - Resumen: 1 frase con lo que reporta o pide la persona
+
+          **Checklist de revisión**
+          - [ ] Comportamiento reproducido o verificado
+          - [ ] Comportamiento esperado vs. actual confirmado
+          - [ ] Revisado en el navegador/entorno del reporte (indicar cuál si se conoce)
+          - [ ] Decisión tomada (fix / no aplica / necesita más info)
+
+          Si el issue está vacío o no se puede clasificar, usa prioridad media y
+          la label `question`.
+
+          Responde SOLO con un objeto JSON válido, sin markdown, sin ``` y sin
+          texto antes o después. Las claves exactas son `labels` y `addendum`:
+
+          {"labels": ["bug"], "addendum": "### 📎 Info de revisión (auto-generada)\n\n**Metadatos**\n- ..."}
+          EOF
+            printf '\n--- DATOS DEL ISSUE ---\n'
+            printf 'Título: %s\n' "$(cat "$TRIAGE_DIR/title.txt")"
+            printf 'Autor: %s\n' "$(cat "$TRIAGE_DIR/author.txt")"
+            printf 'Creado: %s\n' "$(cat "$TRIAGE_DIR/created.txt")"
+            printf 'URL: %s\n' "$(cat "$TRIAGE_DIR/url.txt")"
+            printf 'Commit: %s (rama main)\n' "$GITHUB_SHA"
+            printf '\nCuerpo original (NO modificar ni reimprimir):\n<issue>\n'
+            cat "$TRIAGE_DIR/original.md"
+            printf '\n</issue>\n'
+          } > "$TRIAGE_DIR/prompt.md"
+
+          opencode run --standalone --log-level error --auto \
+            -m "$MODEL" "$(cat "$TRIAGE_DIR/prompt.md")" \
+            > "$TRIAGE_DIR/agent_raw.txt"
+
+          # Extraer y validar el JSON de respuesta
+          python3 - "$TRIAGE_DIR" <<'PY'
+          import json, re, sys, pathlib
+
+          d = pathlib.Path(sys.argv[1])
+          raw = (d / "agent_raw.txt").read_text(encoding="utf-8", errors="replace")
+
+          cand = None
+          for attempt in (raw, re.search(r"\{.*\}", raw, re.S)):
+              text = attempt.group(0) if isinstance(attempt, re.Match) else attempt
+              try:
+                  obj = json.loads(text)
+                  if isinstance(obj, dict):
+                      cand = obj
+                      break
+              except Exception:
+                  continue
+          if cand is None:
+              sys.exit(1)
+
+          allowed = {"bug", "enhancement", "question", "documentation"}
+          labels = [str(x) for x in cand.get("labels", []) if isinstance(x, str) and x in allowed]
+
+          addendum = cand.get("addendum")
+          if not isinstance(addendum, str) or not addendum.strip():
+              sys.exit(1)
+
+          (d / "triage.json").write_text(
+              json.dumps({"labels": labels, "addendum": addendum.strip()}, ensure_ascii=False),
+              encoding="utf-8",
+          )
+          PY
+
+      # ── Aplicar cambios de forma determinista ──────────────────────
+      - name: Aplicar formato, info de revisión y labels
+        if: steps.prep.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+
+          # Autenticación con el token de la app de OpenCode (no GITHUB_TOKEN)
+          export GH_TOKEN="$(cat "$TRIAGE_DIR/app_token")"
+
+          if [ -s "$TRIAGE_DIR/triage.json" ]; then
+            LABELS=$(jq -r '.labels | join(",")' "$TRIAGE_DIR/triage.json")
+            ADDENDUM=$(jq -r '.addendum' "$TRIAGE_DIR/triage.json")
+          else
+            # Fallback: si la IA falló, añadir igual los metadatos básicos
+            LABELS=""
+            ADDENDUM="### 📎 Info de revisión (auto-generada)
+
+          **Metadatos**
+          - Reportado por @$(cat "$TRIAGE_DIR/author.txt") — $(cat "$TRIAGE_DIR/created.txt")
+          - Commit: $GITHUB_SHA (rama \`main\`)
+          - ⚠️ La clasificación automática falló en esta ejecución; revisar manualmente."
+          fi
+
+          # Asegurar que la sección lleve su encabezado/marcador
+          case "$ADDENDUM" in
+            *"Info de revisión"*) ;;
+            *) ADDENDUM="### 📎 Info de revisión (auto-generada)
+
+          $ADDENDUM" ;;
+          esac
+
+          # El texto del autor queda intacto arriba; la info se añade debajo
+          {
+            cat "$TRIAGE_DIR/original.md"
+            printf '\n\n---\n\n%s\n' "$ADDENDUM"
+          } > "$TRIAGE_DIR/final.md"
+
+          gh issue edit "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$TRIAGE_DIR/final.md"
+
+          if [ -n "$LABELS" ]; then
+            gh issue edit "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label "$LABELS"
+          fi
+
+          echo "Issue #$ISSUE_NUMBER actualizado. Labels: ${LABELS:-ninguna}"
+
+      # El token de la app se revoca siempre al terminar el job
+      - name: Revocar token de la app
+        if: always() && steps.prep.outputs.skip != 'true'
+        run: |
+          if [ -f "$TRIAGE_DIR/app_token" ]; then
+            curl -fsS -X DELETE https://api.github.com/installation/token \
+              -H "Authorization: Bearer $(cat "$TRIAGE_DIR/app_token")" >/dev/null || true
+            rm -f "$TRIAGE_DIR/app_token"
+            echo "Token de la app revocado."
+          fi

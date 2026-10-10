@@ -68,3 +68,14 @@ Con la skin **TITÁN** todos los valores se multiplican por 2 (40 / 100 / 200 / 
 - **Power-up Escudo**: ~10% de probabilidad de soltarlo al destruir un asteroide (anillo violeta con icono de escudo). Al recogerlo la nave queda protegida durante **5 segundos** y el escudo **absorbe hasta 3 impactos** con asteroides o estrellas fugaces. Cada impacto consume un golpe, destella el anillo y da invencibilidad breve (parpadeo) para no perder los golpes de una sola vez. Se apaga al agotarse los golpes o el tiempo (parpadea al estar por expirar), se pierde al morir o al avanzar de nivel, y el HUD muestra los golpes y segundos restantes. Dura 8 s en el campo si no se recoge.
 - **Estrella fugaz** (asteroide especial): aparece cada 6–12 s desde un borde del campo, cruzándolo a 260–340 px/s (varias veces la velocidad de un asteroide pequeño). Es una estrella de 5 puntas amarilla con estela que **desaparece a los 5 s** si no la destruyen (parpadea y se desvanece al estar por expirar). Da **300 puntos**, no se fragmenta al ser destruida, no suelta power-ups y mata al chocar con la nave (el Escudo activo absorbe ese impacto). Su presencia no bloquea el avance de nivel.
 - **Skins de nave**: 5 apariencias (silueta, color y detalle) seleccionables con `K` en caliente; la elegida se persiste en `localStorage`. Los iconos de vidas del HUD reflejan la skin activa. Cuatro son cosméticas; **TITÁN** (morada) mide el doble, tiene el doble de colisión y multiplica ×2 la puntuación.
+
+## Automatización (GitHub Actions)
+
+- **`.github/workflows/triage-issue.yml`** — *Issue Triage*: cada issue nuevo pasa por un triage automático con IA (OpenCode en modo headless con `opencode run`):
+  - **Clasifica** el issue con labels (`bug`, `enhancement`, `question`, `documentation`), validadas contra una lista permitida.
+  - **Añade una sección "📎 Info de revisión"** debajo del texto original, que se conserva **tal cual, byte a byte**. La sección incluye metadatos (autor, fecha, commit, código relevante), el triage de la IA (categoría, prioridad, resumen) y un checklist de revisión.
+  - Si la IA falla, un *fallback* agrega igual los metadatos básicos. Si el issue ya tiene la sección, se omite (idempotente).
+  - **No usa `secrets.GITHUB_TOKEN`**: la autenticación para editar issues viene de un token OIDC de Actions canjeado por el token de instalación de la app de GitHub de OpenCode (`opencode github install`); el token se revoca al terminar el job.
+- **`.github/workflows/opencode.yml`** — *OpenCode Agent*: escribe `/oc` (o `/opencode`) en un comentario de un issue o PR para invocar al agente sobre ese hilo.
+
+Requiere el secret `OPENCODE_API_KEY` en *Settings → Secrets and variables → Actions* y la app de GitHub de OpenCode instalada en el repo.
