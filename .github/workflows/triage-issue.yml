@@ -122,9 +122,9 @@ jobs:
         shell: bash
         run: |
           opencode run "$(cat /tmp/prompt.txt)" \
-            --model opencode-go/glm-5.2 \
+            --model opencode/mimo-v2.6-flash-free \
             --format json \
-            --dangerously-skip-permissions \
+            --auto \
             > /tmp/events.ndjson 2> /tmp/opencode.log
           echo "::group::opencode log (last 40 lines)"
           tail -n 40 /tmp/opencode.log || true

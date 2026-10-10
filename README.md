@@ -71,10 +71,11 @@ Con la skin **TITÁN** todos los valores se multiplican por 2 (40 / 100 / 200 / 
 
 ## Automatización (GitHub Actions)
 
-- **`.github/workflows/triage-issue.yml`** — *Issue Triage*: cada issue nuevo pasa por un triage automático con IA (OpenCode en modo headless con `opencode run`):
-  - **Clasifica** el issue con labels (`bug`, `enhancement`, `question`, `documentation`), validadas contra una lista permitida.
-  - **Añade una sección "📎 Info de revisión"** debajo del texto original, que se conserva **tal cual, byte a byte**. La sección incluye metadatos (autor, fecha, commit, código relevante), el triage de la IA (categoría, prioridad, resumen) y un checklist de revisión.
-  - Si la IA falla, un *fallback* agrega igual los metadatos básicos. Si el issue ya tiene la sección, se omite (idempotente).
+- **`.github/workflows/triage-issue.yml`** — *Issue Triage*: cada issue nuevo pasa por un triage automático con IA (OpenCode en modo headless con `opencode run --auto`, modelo `opencode/mimo-v2.6-flash-free`):
+  - **Clasifica** el issue con 1–2 labels del conjunto `bug`, `enhancement`, `question`, `documentation`, `needs-triage` (si no existen, se crean con `gh label create --force`; si la IA no clasifica, queda `needs-triage`).
+  - **Reformatea el cuerpo** en español con `## Resumen`, `## Información relevante` (área probable del código, severidad sugerida, pasos de reproducción) y `## Descripción` normalizada.
+  - **Preserva el texto del autor**: se añade al final, tras un `---`, como `_Texto original del issue_` citado línea por línea con `> ` sin modificar su contenido.
+  - Si la IA no produce un resultado válido, se omite la edición y el issue queda como estaba.
   - **No usa `secrets.GITHUB_TOKEN`**: la autenticación para editar issues viene de un token OIDC de Actions canjeado por el token de instalación de la app de GitHub de OpenCode (`opencode github install`); el token se revoca al terminar el job.
 - **`.github/workflows/opencode.yml`** — *OpenCode Agent*: escribe `/oc` (o `/opencode`) en un comentario de un issue o PR para invocar al agente sobre ese hilo.
 
