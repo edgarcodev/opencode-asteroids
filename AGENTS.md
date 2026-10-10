@@ -2,7 +2,7 @@
 
 ## What this is
 
-Vanilla HTML5 canvas Asteroids clone. **No toolchain**: no `package.json`, no build, no tests, no lint, no CI. The entire game lives in `game.js` (~420 lines); `index.html` is just a canvas shell (800×600) plus a `<script>` tag. Don't introduce dependencies, bundlers, or frameworks — the README explicitly states "sin dependencias ni bundler".
+Vanilla HTML5 canvas Asteroids clone. **No toolchain**: no `package.json`, no build, no tests, no lint, no CI. The entire game lives in `game.js` (~420 lines); `index.html` is just a canvas shell (1600×1200) plus a `<script>` tag. Don't introduce dependencies, bundlers, or frameworks — the README explicitly states "sin dependencias ni bundler".
 
 ## Run it
 
